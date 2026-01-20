@@ -40,4 +40,4 @@ Ensure BigQuery access is configured via environment variables before running
 ## Notes
 
 This repo follows the universe-first case/control flow described in
-`All of US - define case control phenotypes.md`.
+`AllOfUs_Phenotypes_CC.md`.

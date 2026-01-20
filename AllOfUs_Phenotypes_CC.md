@@ -26,13 +26,13 @@ Optional universe-level clinical constraints may be applied using inclusion and 
 
 ### 3.1 Conditions
 
-* Conditions may be specified using ICD-9-CM or ICD-10-CM diagnosis codes.
-* Diagnosis codes are automatically mapped to OMOP concepts using standard OMOP vocabulary mappings.
+* Conditions are specified as OMOP concept ids.
+
 
 ### 3.2 Procedures
 
 * OMOP does not provide complete cross-vocabulary mappings for procedures.
-* Procedures **must therefore be specified explicitly in all relevant OMOP vocabularies** (e.g., CPT4, HCPCS, ICD9Proc, ICD10PCS, SNOMED).
+* Procedures **must therefore be specified explicitly in all relevant OMOP vocabularies (as OMOP concept ids)** (e.g., CPT4, HCPCS, ICD9Proc, ICD10PCS, SNOMED).
 * No automatic mapping across procedure vocabularies is assumed.
 
 All procedure definitions consist of flat lists of OMOP procedure concept IDs, potentially spanning multiple vocabularies.
