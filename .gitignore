@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.eggs/
+
+# Environments
+.venv/
+.env/
+.env.*
+
+# Build artifacts
+build/
+dist/
+
+# Test/coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Editor/OS
+.DS_Store
+.ipynb_checkpoints/
+
+# Local data outputs
+OMOP/
+*.db
+*.tsv
+*.xlsx
+*.jsonl
+phenotypes.tsv
