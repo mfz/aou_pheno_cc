@@ -112,20 +112,20 @@ It is not intended for detailed clinical cohort construction or regulatory-grade
 
 # Reference Excel Template
 
-Each row defines one phenotype. Concept ID columns contain comma-separated OMOP concept IDs.
+Each row defines one phenotype. Concept ID columns contain comma-separated OMOP concept IDs; ICD columns contain comma-separated ICD9/10 codes.
+
+Required columns: `phenotype_id`, `phenotype_name`, and at least one of `case.cond` or `case.cond.icd`. All other columns are optional. Unknown columns are rejected.
 
 | Column Name        | Description                             |
 | ------------------ | --------------------------------------- |
-| phenotype_id       | Unique phenotype identifier             |
-| phenotype_name     | Human-readable phenotype name           |
+| phenotype_id       | Unique phenotype identifier (required)  |
+| phenotype_name     | Human-readable phenotype name (required) |
 | universe.cond      | Inclusion condition concept IDs         |
 | universe.cond.icd  | Inclusion condition ICD9/10 codes       |
 | universe.proc      | Inclusion procedure concept IDs         |
 | universe.excl.cond | Exclusion condition concept IDs         |
 | universe.excl.cond.icd | Exclusion condition ICD9/10 codes   |
 | universe.excl.proc | Exclusion procedure concept IDs         |
-| universe.min.age   | Minimum age for universe eligibility    |
-| universe.max.age   | Maximum age for universe eligibility    |
 | case.cond          | Case-defining condition concept IDs     |
 | case.cond.icd      | Case-defining ICD9/10 codes             |
 | case.proc          | Case-defining procedure concept IDs     |

@@ -10,19 +10,29 @@ import pandas as pd
 REQUIRED_COLUMNS = [
     "phenotype_id",
     "phenotype_name",
+]
+
+OPTIONAL_COLUMNS = [
     "universe.cond",
+    "universe.cond.icd",
     "universe.proc",
     "universe.excl.cond",
+    "universe.excl.cond.icd",
     "universe.excl.proc",
     "case.cond",
+    "case.cond.icd",
     "case.proc",
     "case.excl.cond",
+    "case.excl.cond.icd",
     "case.excl.proc",
     "case.min.age",
     "case.max.age",
     "ctrl.excl.cond",
+    "ctrl.excl.cond.icd",
     "ctrl.excl.proc",
 ]
+
+ALLOWED_COLUMNS = set(REQUIRED_COLUMNS) | set(OPTIONAL_COLUMNS)
 
 CONCEPT_LIST_COLUMNS = {
     "universe.cond",
@@ -91,7 +101,7 @@ def _parse_age(value: Any) -> Optional[float]:
 
 def _row_to_record(row: pd.Series) -> Dict[str, Any]:
     record: Dict[str, Any] = {}
-    for col in REQUIRED_COLUMNS:
+    for col in REQUIRED_COLUMNS + OPTIONAL_COLUMNS:
         if col in CONCEPT_LIST_COLUMNS:
             record[col] = _parse_concept_list(row.get(col))
         elif col in ICD_LIST_COLUMNS:
@@ -100,13 +110,14 @@ def _row_to_record(row: pd.Series) -> Dict[str, Any]:
             record[col] = _parse_age(row.get(col))
         else:
             record[col] = _normalize_cell(row.get(col))
-    for col in ICD_LIST_COLUMNS:
-        if col not in record:
-            record[col] = _parse_icd_list(row.get(col))
     if not record["phenotype_id"]:
         raise ValueError("Missing phenotype_id")
     if not record["phenotype_name"]:
         raise ValueError(f"Missing phenotype_name for {record['phenotype_id']}")
+    if not (record["case.cond"] or record["case.cond.icd"]):
+        raise ValueError(
+            f"Missing case.cond or case.cond.icd for {record['phenotype_id']}"
+        )
     return record
 
 
@@ -142,6 +153,9 @@ def main() -> int:
     missing = [col for col in REQUIRED_COLUMNS if col not in df.columns]
     if missing:
         raise ValueError(f"Missing required columns: {', '.join(missing)}")
+    extra = [col for col in df.columns if col not in ALLOWED_COLUMNS]
+    if extra:
+        raise ValueError(f"Unknown columns: {', '.join(extra)}")
 
     output_path = Path(args.output) if args.output else input_path.with_suffix(".jsonl")
 
