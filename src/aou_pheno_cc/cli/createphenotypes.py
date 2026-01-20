@@ -271,7 +271,7 @@ def main() -> int:
         con.close()
 
     output_path = Path(args.output)
-    df.to_csv(output_path, sep="\t", index=False)
+    df.to_csv(output_path, sep="\t", index=False, na_rep="NA")
     return 0
 
 

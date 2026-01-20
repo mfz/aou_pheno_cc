@@ -155,7 +155,7 @@ def _write_frames_to_sqlite(
         first = False
 
 
-def _download_ancestry(ancestry_src: str, out_path: Path) -> Path:
+def _download_ancestry(ancestry_src: str, out_path: Path, project: str) -> Path:
     if ancestry_src.startswith("gs://"):
         gsutil = shutil.which("gsutil")
         if not gsutil:
@@ -163,7 +163,10 @@ def _download_ancestry(ancestry_src: str, out_path: Path) -> Path:
                 "gsutil not found; provide a local --ancestry-tsv path."
             )
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        subprocess.run([gsutil, "cp", ancestry_src, str(out_path)], check=True)
+        subprocess.run(
+            [gsutil, "-u", project, "cp", ancestry_src, str(out_path)],
+            check=True,
+        )
         return out_path
 
     src_path = Path(ancestry_src)
@@ -268,16 +271,21 @@ def main() -> int:
 
     con = sqlite3.connect(sqlite_path)
     try:
-        ancestry_path = _download_ancestry(args.ancestry_tsv, out_dir / "ancestry.tsv")
+        ancestry_path = _download_ancestry(
+            args.ancestry_tsv, out_dir / "ancestry.tsv", args.project
+        )
+        print(f"[createphenodb] loading ancestry from {ancestry_path}")
         ancestry = pd.read_csv(ancestry_path, sep="\t")
         ancestry = ancestry.rename(columns={"research_id": "person_id"})
         ancestry = ancestry[["person_id", "ancestry_pred"]]
 
         for name, sql in queries.items():
+            print(f"[createphenodb] querying {name}...")
             frames = _query_to_frames(client, sql)
             tsv_path = None if args.no_tsv else out_dir / f"{name}.tsv"
 
             if name == "demographics":
+                print("[createphenodb] merging ancestry into demographics")
                 def _merged_iter():
                     for frame in frames:
                         if frame.empty:
@@ -286,10 +294,13 @@ def main() -> int:
 
                 frames = _merged_iter()
 
+            print(f"[createphenodb] writing {name} to sqlite")
             _write_frames_to_sqlite(con, name, frames, tsv_path)
 
         _create_indexes(con)
+        print("[createphenodb] creating indexes")
         _write_metadata(con, args.project, dataset_fq, args.ancestry_tsv)
+        print(f"[createphenodb] done; sqlite at {sqlite_path}")
     finally:
         con.commit()
         con.close()

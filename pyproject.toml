@@ -13,6 +13,7 @@ license = {text = "MIT"}
 dependencies = [
   "pandas>=1.5",
   "google-cloud-bigquery>=3.10",
+  "db-dtypes",
   "openpyxl>=3.1",
 ]
 
