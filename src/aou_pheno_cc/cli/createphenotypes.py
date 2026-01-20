@@ -236,16 +236,22 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Create case/control phenotype matrix from JSONL and OMOP.db."
     )
-    parser.add_argument("--phenotypes", required=True, help="Phenotype definitions JSONL")
+    parser.add_argument("phenotypes", help="Phenotype definitions JSONL")
     parser.add_argument("--sqlite", required=True, help="Path to OMOP.db")
     parser.add_argument(
         "--output",
-        default="phenotypes.tsv",
-        help="Output TSV path (default: phenotypes.tsv)",
+        default=None,
+        help="Output TSV path (default: <phenotypes>.tsv)",
+    )
+    parser.add_argument(
+        "--counts",
+        default=None,
+        help="Counts TSV path (default: <phenotypes>_counts.tsv)",
     )
     args = parser.parse_args()
 
-    phenos = _read_jsonl(Path(args.phenotypes))
+    phenotypes_path = Path(args.phenotypes)
+    phenos = _read_jsonl(phenotypes_path)
     if not phenos:
         raise SystemExit("No phenotypes found in JSONL")
 
@@ -255,6 +261,16 @@ def main() -> int:
         base_universe = _universe(cur)
 
         df = pd.DataFrame({"person_id": sorted(base_universe)})
+        demo = pd.read_sql_query(
+            "SELECT person_id, ancestry_pred FROM demographics",
+            con,
+        )
+        demo = demo[demo["person_id"].isin(base_universe)]
+        demo["ancestry_pred"] = demo["ancestry_pred"].fillna("NA").astype(str)
+        ancestry_df = df.merge(demo, on="person_id", how="left")
+        ancestry_df["ancestry"] = ancestry_df["ancestry_pred"].fillna("NA")
+        ancestry_df = ancestry_df[["person_id", "ancestry"]]
+        counts_rows: List[Dict[str, object]] = []
 
         for pheno in phenos:
             universe = _apply_universe_filters(
@@ -267,11 +283,32 @@ def main() -> int:
             )
             cases, controls = _get_case_control(cur, universe, pheno)
             df = _add_pheno_column(df, cases, controls, pheno.phenotype_id)
+            case_counts = ancestry_df[ancestry_df["person_id"].isin(cases)].groupby("ancestry").size()
+            control_counts = ancestry_df[ancestry_df["person_id"].isin(controls)].groupby("ancestry").size()
+            ancestries = sorted(set(case_counts.index).union(control_counts.index))
+            for ancestry in ancestries:
+                ncases = int(case_counts.get(ancestry, 0))
+                ncontrols = int(control_counts.get(ancestry, 0))
+                counts_rows.append(
+                    {
+                        "phenotype_id": pheno.phenotype_id,
+                        "ancestry": ancestry,
+                        "ncases": "<20" if ncases < 20 else ncases,
+                        "ncontrols": "<20" if ncontrols < 20 else ncontrols,
+                    }
+                )
     finally:
         con.close()
 
-    output_path = Path(args.output)
+    output_path = Path(args.output) if args.output else phenotypes_path.with_suffix(".tsv")
     df.to_csv(output_path, sep="\t", index=False, na_rep="NA")
+    counts_path = (
+        Path(args.counts)
+        if args.counts
+        else phenotypes_path.with_name(f"{phenotypes_path.stem}_counts.tsv")
+    )
+    counts_df = pd.DataFrame(counts_rows, columns=["phenotype_id", "ancestry", "ncases", "ncontrols"])
+    counts_df.to_csv(counts_path, sep="\t", index=False)
     return 0
 
 
