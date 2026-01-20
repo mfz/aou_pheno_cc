@@ -27,6 +27,7 @@ Optional universe-level clinical constraints may be applied using inclusion and 
 ### 3.1 Conditions
 
 * Conditions are specified as OMOP concept ids.
+* Alternatively, condition codes may be specified using ICD9/10 codes in the optional `.cond.icd` columns; these are mapped to OMOP condition concepts at runtime.
 
 
 ### 3.2 Procedures
@@ -118,22 +119,28 @@ Each row defines one phenotype. Concept ID columns contain comma-separated OMOP 
 | phenotype_id       | Unique phenotype identifier             |
 | phenotype_name     | Human-readable phenotype name           |
 | universe.cond      | Inclusion condition concept IDs         |
+| universe.cond.icd  | Inclusion condition ICD9/10 codes       |
 | universe.proc      | Inclusion procedure concept IDs         |
 | universe.excl.cond | Exclusion condition concept IDs         |
+| universe.excl.cond.icd | Exclusion condition ICD9/10 codes   |
 | universe.excl.proc | Exclusion procedure concept IDs         |
 | universe.min.age   | Minimum age for universe eligibility    |
 | universe.max.age   | Maximum age for universe eligibility    |
 | case.cond          | Case-defining condition concept IDs     |
+| case.cond.icd      | Case-defining ICD9/10 codes             |
 | case.proc          | Case-defining procedure concept IDs     |
 | case.excl.cond     | Case exclusion condition concept IDs    |
+| case.excl.cond.icd | Case exclusion ICD9/10 codes            |
 | case.excl.proc     | Case exclusion procedure concept IDs    |
 | case.min.age       | Minimum age at first case event         |
 | case.max.age       | Maximum age at first case event         |
 | ctrl.excl.cond     | Control exclusion condition concept IDs |
+| ctrl.excl.cond.icd | Control exclusion ICD9/10 codes         |
 | ctrl.excl.proc     | Control exclusion procedure concept IDs |
 
 ### Notes
 
 * Empty cells indicate no constraint.
 * All concept lists are evaluated using OR semantics.
+* ICD code lists are comma-separated ICD9/10 codes and are only supported for condition columns.
 * Procedure concept lists may include multiple vocabularies.

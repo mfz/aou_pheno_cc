@@ -16,13 +16,18 @@ def test_xls2json_basic(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
         "universe.excl.cond": [""],
         "universe.excl.proc": [""],
         "case.cond": ["100, 200"],
+        "case.cond.icd": ["A01, B02"],
         "case.proc": [""],
         "case.excl.cond": [""],
+        "case.excl.cond.icd": [""],
         "case.excl.proc": [""],
         "case.min.age": [30],
         "case.max.age": [40],
         "ctrl.excl.cond": [""],
+        "ctrl.excl.cond.icd": [""],
         "ctrl.excl.proc": [""],
+        "universe.cond.icd": [""],
+        "universe.excl.cond.icd": [""],
     }
     df = pd.DataFrame(data)
     xlsx_path = tmp_path / "phenos.xlsx"
@@ -42,7 +47,9 @@ def test_xls2json_basic(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert record["phenotype_id"] == "ph1"
     assert record["phenotype_name"] == "Phenotype 1"
     assert record["case.cond"] == [100, 200]
+    assert record["case.cond.icd"] == ["A01", "B02"]
     assert record["case.min.age"] == 30.0
     assert record["case.max.age"] == 40.0
     assert record["universe.cond"] == []
+    assert record["universe.cond.icd"] == []
     assert record["case.proc"] == []

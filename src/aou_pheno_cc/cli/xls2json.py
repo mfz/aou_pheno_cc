@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 
 
-EXPECTED_COLUMNS = [
+REQUIRED_COLUMNS = [
     "phenotype_id",
     "phenotype_name",
     "universe.cond",
@@ -37,6 +37,14 @@ CONCEPT_LIST_COLUMNS = {
     "ctrl.excl.proc",
 }
 
+ICD_LIST_COLUMNS = {
+    "universe.cond.icd",
+    "universe.excl.cond.icd",
+    "case.cond.icd",
+    "case.excl.cond.icd",
+    "ctrl.excl.cond.icd",
+}
+
 AGE_COLUMNS = {"case.min.age", "case.max.age"}
 
 
@@ -64,6 +72,13 @@ def _parse_concept_list(value: Any) -> List[int]:
     return ids
 
 
+def _parse_icd_list(value: Any) -> List[str]:
+    text = _normalize_cell(value)
+    if text is None:
+        return []
+    return [part.strip() for part in text.split(",") if part.strip()]
+
+
 def _parse_age(value: Any) -> Optional[float]:
     text = _normalize_cell(value)
     if text is None:
@@ -76,13 +91,18 @@ def _parse_age(value: Any) -> Optional[float]:
 
 def _row_to_record(row: pd.Series) -> Dict[str, Any]:
     record: Dict[str, Any] = {}
-    for col in EXPECTED_COLUMNS:
+    for col in REQUIRED_COLUMNS:
         if col in CONCEPT_LIST_COLUMNS:
             record[col] = _parse_concept_list(row.get(col))
+        elif col in ICD_LIST_COLUMNS:
+            record[col] = _parse_icd_list(row.get(col))
         elif col in AGE_COLUMNS:
             record[col] = _parse_age(row.get(col))
         else:
             record[col] = _normalize_cell(row.get(col))
+    for col in ICD_LIST_COLUMNS:
+        if col not in record:
+            record[col] = _parse_icd_list(row.get(col))
     if not record["phenotype_id"]:
         raise ValueError("Missing phenotype_id")
     if not record["phenotype_name"]:
@@ -119,7 +139,7 @@ def main() -> int:
 
     df = pd.read_excel(input_path, sheet_name=sheet, engine="openpyxl")
 
-    missing = [col for col in EXPECTED_COLUMNS if col not in df.columns]
+    missing = [col for col in REQUIRED_COLUMNS if col not in df.columns]
     if missing:
         raise ValueError(f"Missing required columns: {', '.join(missing)}")
 

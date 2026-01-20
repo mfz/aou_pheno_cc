@@ -64,6 +64,14 @@ def test_createphenotypes_simple(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
             }
         )
         _write_table(con, "procedure_descendants", procedure_descendants)
+
+        icd2omop = pd.DataFrame(
+            {
+                "icd_code": ["A01"],
+                "omop_concept_id": [999],
+            }
+        )
+        _write_table(con, "icd2omop", icd2omop)
     finally:
         con.commit()
         con.close()
@@ -72,17 +80,22 @@ def test_createphenotypes_simple(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
         {
             "phenotype_id": "ph1",
             "phenotype_name": "Test Pheno",
-            "case.cond": [999],
+            "case.cond": [],
+            "case.cond.icd": ["A01"],
             "case.proc": [],
             "case.excl.cond": [],
+            "case.excl.cond.icd": [],
             "case.excl.proc": [],
             "case.min.age": 30,
             "case.max.age": 40,
             "ctrl.excl.cond": [],
+            "ctrl.excl.cond.icd": [],
             "ctrl.excl.proc": [],
             "universe.cond": [],
+            "universe.cond.icd": [],
             "universe.proc": [],
             "universe.excl.cond": [],
+            "universe.excl.cond.icd": [],
             "universe.excl.proc": [],
         }
     ]
@@ -94,7 +107,6 @@ def test_createphenotypes_simple(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
         "sys.argv",
         [
             "createphenotypes",
-            "--phenotypes",
             str(jsonl_path),
             "--sqlite",
             str(db_path),
@@ -112,3 +124,13 @@ def test_createphenotypes_simple(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 
     assert pd.isna(row1["ph1"])
     assert row3["ph1"] == 1
+
+    counts_path = tmp_path / "phenos_counts.tsv"
+    counts_df = pd.read_csv(counts_path, sep="\t")
+    assert list(counts_df.columns) == ["phenotype_id", "ancestry", "ncases", "ncontrols"]
+    assert len(counts_df) == 1
+    row = counts_df.iloc[0]
+    assert row["phenotype_id"] == "ph1"
+    assert row["ancestry"] == "AFR"
+    assert row["ncases"] == "<20"
+    assert row["ncontrols"] == "<20"

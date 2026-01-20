@@ -14,16 +14,21 @@ class PhenotypeDef:
     phenotype_id: str
     phenotype_name: str
     universe_cond: List[int]
+    universe_cond_icd: List[str]
     universe_proc: List[int]
     universe_excl_cond: List[int]
+    universe_excl_cond_icd: List[str]
     universe_excl_proc: List[int]
     case_cond: List[int]
+    case_cond_icd: List[str]
     case_proc: List[int]
     case_excl_cond: List[int]
+    case_excl_cond_icd: List[str]
     case_excl_proc: List[int]
     case_min_age: Optional[float]
     case_max_age: Optional[float]
     ctrl_excl_cond: List[int]
+    ctrl_excl_cond_icd: List[str]
     ctrl_excl_proc: List[int]
 
 
@@ -39,16 +44,21 @@ def _read_jsonl(path: Path) -> List[PhenotypeDef]:
                     phenotype_id=str(data["phenotype_id"]),
                     phenotype_name=str(data["phenotype_name"]),
                     universe_cond=data.get("universe.cond", []),
+                    universe_cond_icd=data.get("universe.cond.icd", []),
                     universe_proc=data.get("universe.proc", []),
                     universe_excl_cond=data.get("universe.excl.cond", []),
+                    universe_excl_cond_icd=data.get("universe.excl.cond.icd", []),
                     universe_excl_proc=data.get("universe.excl.proc", []),
                     case_cond=data.get("case.cond", []),
+                    case_cond_icd=data.get("case.cond.icd", []),
                     case_proc=data.get("case.proc", []),
                     case_excl_cond=data.get("case.excl.cond", []),
+                    case_excl_cond_icd=data.get("case.excl.cond.icd", []),
                     case_excl_proc=data.get("case.excl.proc", []),
                     case_min_age=data.get("case.min.age"),
                     case_max_age=data.get("case.max.age"),
                     ctrl_excl_cond=data.get("ctrl.excl.cond", []),
+                    ctrl_excl_cond_icd=data.get("ctrl.excl.cond.icd", []),
                     ctrl_excl_proc=data.get("ctrl.excl.proc", []),
                 )
             )
@@ -57,6 +67,27 @@ def _read_jsonl(path: Path) -> List[PhenotypeDef]:
 
 def _fetchall_set(cur: sqlite3.Cursor) -> Set[int]:
     return {row[0] for row in cur.fetchall()}
+
+
+def _icd_to_omop(
+    cur: sqlite3.Cursor,
+    icd_codes: Sequence[str],
+    cache: Dict[Tuple[str, ...], List[int]],
+) -> List[int]:
+    if not icd_codes:
+        return []
+    codes = tuple(sorted({code.strip() for code in icd_codes if str(code).strip()}))
+    if not codes:
+        return []
+    cached = cache.get(codes)
+    if cached is not None:
+        return cached
+    placeholders = ",".join(["?"] * len(codes))
+    sql = f"SELECT DISTINCT omop_concept_id FROM icd2omop WHERE icd_code IN ({placeholders})"
+    cur.execute(sql, list(codes))
+    mapped = [row[0] for row in cur.fetchall()]
+    cache[codes] = mapped
+    return mapped
 
 
 def _descendants(cur: sqlite3.Cursor, table: str, concept_ids: Sequence[int]) -> List[int]:
@@ -156,8 +187,11 @@ def _get_case_control(
     cur: sqlite3.Cursor,
     universe: Set[int],
     pheno: PhenotypeDef,
+    case_cond: Sequence[int],
+    case_excl_cond: Sequence[int],
+    ctrl_excl_cond: Sequence[int],
 ) -> Tuple[Set[int], Set[int]]:
-    co = _occurrence(cur, "condition_occurrence", pheno.case_cond, "condition_start_date", "condition_descendants")
+    co = _occurrence(cur, "condition_occurrence", case_cond, "condition_start_date", "condition_descendants")
     po = _occurrence(cur, "procedure_occurrence", pheno.case_proc, "procedure_date", "procedure_descendants")
 
     case_ids = set(co["person_id"]).union(set(po["person_id"]))
@@ -183,11 +217,11 @@ def _get_case_control(
 
     cases = universe.intersection(cases_age)
 
-    if pheno.case_excl_cond:
+    if case_excl_cond:
         co_ex = _occurrence(
             cur,
             "condition_occurrence",
-            pheno.case_excl_cond,
+            case_excl_cond,
             "condition_start_date",
             "condition_descendants",
         )
@@ -203,11 +237,11 @@ def _get_case_control(
         cases = cases.difference(set(po_ex["person_id"]))
 
     controls = controls_0
-    if pheno.ctrl_excl_cond:
+    if ctrl_excl_cond:
         co_ex = _occurrence(
             cur,
             "condition_occurrence",
-            pheno.ctrl_excl_cond,
+            ctrl_excl_cond,
             "condition_start_date",
             "condition_descendants",
         )
@@ -259,6 +293,7 @@ def main() -> int:
     try:
         cur = con.cursor()
         base_universe = _universe(cur)
+        icd_cache: Dict[Tuple[str, ...], List[int]] = {}
 
         df = pd.DataFrame({"person_id": sorted(base_universe)})
         demo = pd.read_sql_query(
@@ -273,15 +308,37 @@ def main() -> int:
         counts_rows: List[Dict[str, object]] = []
 
         for pheno in phenos:
+            universe_cond = pheno.universe_cond + _icd_to_omop(
+                cur, pheno.universe_cond_icd, icd_cache
+            )
+            universe_excl_cond = pheno.universe_excl_cond + _icd_to_omop(
+                cur, pheno.universe_excl_cond_icd, icd_cache
+            )
+            case_cond = pheno.case_cond + _icd_to_omop(
+                cur, pheno.case_cond_icd, icd_cache
+            )
+            case_excl_cond = pheno.case_excl_cond + _icd_to_omop(
+                cur, pheno.case_excl_cond_icd, icd_cache
+            )
+            ctrl_excl_cond = pheno.ctrl_excl_cond + _icd_to_omop(
+                cur, pheno.ctrl_excl_cond_icd, icd_cache
+            )
             universe = _apply_universe_filters(
                 cur,
                 base_universe,
-                pheno.universe_cond,
+                universe_cond,
                 pheno.universe_proc,
-                pheno.universe_excl_cond,
+                universe_excl_cond,
                 pheno.universe_excl_proc,
             )
-            cases, controls = _get_case_control(cur, universe, pheno)
+            cases, controls = _get_case_control(
+                cur,
+                universe,
+                pheno,
+                case_cond,
+                case_excl_cond,
+                ctrl_excl_cond,
+            )
             df = _add_pheno_column(df, cases, controls, pheno.phenotype_id)
             case_counts = ancestry_df[ancestry_df["person_id"].isin(cases)].groupby("ancestry").size()
             control_counts = ancestry_df[ancestry_df["person_id"].isin(controls)].groupby("ancestry").size()
